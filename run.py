@@ -26,10 +26,12 @@ import os
 import sys
 import importlib
 from collections import deque
-import openslide as ops 
+import openslide as ops
 
 import cv2
 import numpy as np
+
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 from tensorpack.predict import OfflinePredictor, PredictConfig
 from tensorpack.tfutils.sessinit import get_model_loader
@@ -57,7 +59,7 @@ class InferROI(object):
     def __init__(self,):
         self.nr_types = 6  # denotes number of classes (including BG) for nuclear type classification
         self.input_shape = [256, 256]
-        self.mask_shape = [164, 164] 
+        self.mask_shape = [164, 164]
         self.input_norm  = True # normalize RGB to 0-1 range
 
         # for inference during evalutation mode i.e run by infer.py
@@ -75,10 +77,10 @@ class InferROI(object):
 
         # Processing
         self.batch_size = int(args['--batch_size'])
-    
+
     def get_model(self):
         model_constructor = importlib.import_module('hover.model.graph')
-        model_constructor = model_constructor.Model_NP_HV  
+        model_constructor = model_constructor.Model_NP_HV
         return model_constructor # NOTE return alias, not object
 
     def __gen_prediction(self, x, predictor):
@@ -87,9 +89,9 @@ class InferROI(object):
 
         Args:
             x        : input image to be segmented. It will be split into patches
-                       to run the prediction upon before being assembled back 
-            predictor: A predictor built from a given config.           
-        """    
+                       to run the prediction upon before being assembled back
+            predictor: A predictor built from a given config.
+        """
 
         step_size = self.mask_shape
         msk_size = self.mask_shape
@@ -99,8 +101,8 @@ class InferROI(object):
             nr_step = math.ceil((length - msk_size) / step_size)
             last_step = (nr_step + 1) * step_size
             return int(last_step), int(nr_step + 1)
-        
-        im_h = x.shape[0] 
+
+        im_h = x.shape[0]
         im_w = x.shape[1]
 
         last_h, nr_step_h = get_last_steps(im_h, msk_size[0], step_size[0])
@@ -120,7 +122,7 @@ class InferROI(object):
         # generating subpatches from orginal
         for row in range(0, last_h, step_size[0]):
             for col in range (0, last_w, step_size[1]):
-                win = x[row:row+win_size[0], 
+                win = x[row:row+win_size[0],
                         col:col+win_size[1]]
                 sub_patches.append(win)
 
@@ -138,13 +140,13 @@ class InferROI(object):
 
         output_patch_shape = np.squeeze(pred_map[0]).shape
         ch = 1 if len(output_patch_shape) == 2 else output_patch_shape[-1]
-        
+
         # Assemble back into full image
         pred_map = np.squeeze(np.array(pred_map))
         pred_map = np.reshape(pred_map, (nr_step_h, nr_step_w) + pred_map.shape[1:])
         pred_map = np.transpose(pred_map, [0, 2, 1, 3, 4]) if ch != 1 else \
                         np.transpose(pred_map, [0, 2, 1, 3])
-        pred_map = np.reshape(pred_map, (pred_map.shape[0] * pred_map.shape[1], 
+        pred_map = np.reshape(pred_map, (pred_map.shape[0] * pred_map.shape[1],
                                          pred_map.shape[2] * pred_map.shape[3], ch))
         pred_map = np.squeeze(pred_map[:im_h,:im_w]) # just crop back to original size
 
@@ -176,7 +178,7 @@ class InferROI(object):
         file_list = glob.glob('%s/*' %self.input_dir)
         file_list.sort() # ensure same order
 
-        rm_n_mkdir(save_dir)       
+        rm_n_mkdir(save_dir)
         for filename in file_list:
             filename = os.path.basename(filename)
             basename = os.path.splitext(filename)[0]
@@ -191,7 +193,7 @@ class InferROI(object):
             pred_map = self.__gen_prediction(img, self.predictor)
 
             pred_inst, pred_type = proc_utils.process_instance(pred_map, nr_types=self.nr_types)
-            
+
             overlaid_output = visualize_instances(img, pred_inst, pred_type)
             overlaid_output = cv2.cvtColor(overlaid_output, cv2.COLOR_BGR2RGB)
 
@@ -208,11 +210,11 @@ class InferWSI(object):
     def __init__(self):
         self.nr_types = 6  # denotes number of classes (including BG) for nuclear type classification
         self.input_shape = [256, 256]
-        self.mask_shape = [164, 164] 
+        self.mask_shape = [164, 164]
         self.input_norm  = True # normalize RGB to 0-1 range
         self.proc_lvl   = 0 # WSI level at which to process
         self.tiss_seg = True # only process tissue areas
-        self.tiss_lvl = 3 # WSI level at which perform tissue segmentation 
+        self.tiss_lvl = 3 # WSI level at which perform tissue segmentation
 
         # for inference during evalutation mode i.e run by infer.py
         self.input_tensor_names = ['images']
@@ -229,28 +231,29 @@ class InferWSI(object):
         self.model_path  = args['--model']
         # get absolute path for input directory - otherwise may give error in JP2Image.m
         self.input_dir = os.path.abspath(args['--input_dir'])
+        print(f"Input_Dir abspath: {self.input_dir}")
         self.output_dir = args['--output_dir']
 
         # Processing
         self.batch_size = int(args['--batch_size'])
         # Below specific to WSI processing
         self.return_masks = args['--return_masks']
-    
+
     def get_model(self):
         model_constructor = importlib.import_module('hover.model.graph')
-        model_constructor = model_constructor.Model_NP_HV  
+        model_constructor = model_constructor.Model_NP_HV
         return model_constructor # NOTE return alias, not object
 
     def read_region(self, location, level, patch_size, wsi_ext):
         """
         Loads a patch from an OpenSlide object
-        
+
         Args:
             location: top left coordinates of patch
             level: level of WSI pyramid at which to extract
             patch_size: patch size to extract
             wsi_ext: WSI file extension
-        
+
         Returns:
             patch: extracted patch (np array)
         """
@@ -268,7 +271,7 @@ class InferWSI(object):
             r, g, b, _ = cv2.split(np.array(patch))
             patch = cv2.merge([r, g, b])
         return patch
-    
+
     def load_wsi(self, wsi_ext):
         """
         Load WSI using OpenSlide. Note, if using JP2, appropriate
@@ -347,7 +350,7 @@ class InferWSI(object):
         Args:
             tile: tile number index
         """
-        
+
         step_size = np.array(self.mask_shape)
         msk_size = np.array(self.mask_shape)
         win_size = np.array(self.input_shape)
@@ -389,8 +392,8 @@ class InferWSI(object):
                 else:
                     self.patch_coords.append([row, col])
                 idx += 1
-        
-        # generate array of zeros - will insert patch predictions later 
+
+        # generate array of zeros - will insert patch predictions later
         self.zero_array = np.zeros([idx,self.mask_shape[0], self.mask_shape[1],9]) # 9 is the number of total output channels
     ####
 
@@ -421,7 +424,7 @@ class InferWSI(object):
         """
         Run inference for extracted patches and apply post processing.
         Results are then assembled to the size of the original image.
-        
+
         Args:
             tile: tile number index
             wsi_ext: file extension of the whole-slide image
@@ -454,7 +457,7 @@ class InferWSI(object):
                 mini_output = self.predictor(mini_batch)[0]
                 mini_output = np.split(mini_output, len(self.patch_coords), axis=0)
                 pred_map_list.extend(mini_output)
-        
+
             # Assemble back into full image
             output_patch_shape = np.squeeze(pred_map_list[0]).shape
             ch = 1 if len(output_patch_shape) == 2 else output_patch_shape[-1]
@@ -464,25 +467,25 @@ class InferWSI(object):
             pred_map = np.reshape(pred_map, (self.nr_step_h, self.nr_step_w) + pred_map.shape[1:])
             pred_map = np.transpose(pred_map, [0, 2, 1, 3, 4]) if ch != 1 else \
                             np.transpose(pred_map, [0, 2, 1, 3])
-            pred_map = np.reshape(pred_map, (pred_map.shape[0] * pred_map.shape[1], 
+            pred_map = np.reshape(pred_map, (pred_map.shape[0] * pred_map.shape[1],
                                             pred_map.shape[2] * pred_map.shape[3], ch))
-            
+
             # crop back to original size
             if self.scan_resolution[0] > 0.35: # 20x
                 pred_map = np.squeeze(pred_map[:self.tile_info[tile][3]*2,:self.tile_info[tile][2]*2])
             else:
-                pred_map = np.squeeze(pred_map[:self.tile_info[tile][3],:self.tile_info[tile][2]]) 
+                pred_map = np.squeeze(pred_map[:self.tile_info[tile][3],:self.tile_info[tile][2]])
 
             # post processing for a tile
             tile_coords = (self.tile_info[tile][0], self.tile_info[tile][1])
             mask_list, type_list, cent_list = proc_utils.process_instance_wsi(
                 pred_map, self.nr_types, tile_coords, self.return_masks, offset=offset)
-            
+
         else:
             mask_list = []
             type_list = []
             cent_list = []
-        
+
         return mask_list, type_list, cent_list
     ####
 
@@ -493,12 +496,13 @@ class InferWSI(object):
         2) Generate the tissue mask
         3) Get tile coordinate info
         4) Extract patches from foreground regions
-        5) Run inference and return npz for each tile of 
+        5) Run inference and return npz for each tile of
            masks, type predictions and centroid locations
         """
 
         # Load the OpenSlide WSI object
-        self.full_filename = self.input_dir + '/' + filename
+        self.full_filename = os.path.join(self.input_dir, filename)
+        # self.input_dir + '/' + filename
         wsi_ext = self.full_filename.split('.')[-1]
         print(self.full_filename)
         self.load_wsi(wsi_ext)
@@ -547,7 +551,7 @@ class InferWSI(object):
             mask_list_all.extend(mask_list)
             type_list_all.extend(type_list)
             cent_list_all.extend(cent_list)
-            
+
             # uncomment below if you want to save results per tile
 
             # np.savez('%s/%s/%s_%s.npz' % (
@@ -587,7 +591,7 @@ class InferWSI(object):
         self.file_list = glob.glob('%s/*' %self.input_dir)
         self.file_list.sort() # ensure same order
 ####
-    
+
     def process_all_wsi(self):
         """
         Process each WSI one at a time and save results as npz file
@@ -605,7 +609,7 @@ class InferWSI(object):
             self.process_wsi(filename)
             end_time_total = time.time()
             print('. FINISHED. Time: ', time_it(start_time_total, end_time_total), 'secs')
-        
+
 
 #####
 if __name__ == '__main__':
@@ -635,11 +639,11 @@ if __name__ == '__main__':
     if args['--mode'] == 'roi':
         infer = InferROI()
         infer.load_params(args)
-        infer.load_model() 
+        infer.load_model()
         infer.process()
     elif args['--mode'] == 'wsi': # currently saves results per tile
         infer = InferWSI()
         infer.load_params(args)
-        infer.load_model() 
+        infer.load_model()
         infer.load_filenames()
-        infer.process_all_wsi() 
+        infer.process_all_wsi()

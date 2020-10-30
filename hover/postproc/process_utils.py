@@ -17,14 +17,14 @@ def process_instance(pred_map, nr_types, remap_label=False, output_dtype='uint16
     Post processing script for image tiles
 
     Args:
-        pred_map: commbined output of nc, np and hv branches
+        pred_map: combined output of nc, np and hv branches
         nr_types: number of types considered at output of nc branch
         remap_label: whether to map instance labels from 1 to N (N = number of nuclei)
         output_dtype: data type of output
-    
+
     Returns:
         pred_inst:     pixel-wise nuclear instance segmentation prediction
-        pred_type_out: pixel-wise nuclear type prediction 
+        pred_type_out: pixel-wise nuclear type prediction
     """
 
     pred_inst = pred_map[..., nr_types:]
@@ -33,14 +33,14 @@ def process_instance(pred_map, nr_types, remap_label=False, output_dtype='uint16
     pred_inst = np.squeeze(pred_inst)
     pred_type = np.argmax(pred_type, axis=-1)
     pred_type = np.squeeze(pred_type)
-    
+
     pred_inst = proc_np_hv(pred_inst)
 
     # remap label is very slow - only uncomment if necessary to map labels in order
     if remap_label:
         pred_inst = remap_label(pred_inst, by_size=True)
-    
-    pred_type_out = np.zeros([pred_type.shape[0], pred_type.shape[1]])               
+
+    pred_type_out = np.zeros([pred_type.shape[0], pred_type.shape[1]])
     #### * Get class of each instance id, stored at index id-1
     pred_id_list = list(np.unique(pred_inst))[1:] # exclude background ID
     pred_inst_type = np.full(len(pred_id_list), 0, dtype=np.int32)
@@ -58,7 +58,7 @@ def process_instance(pred_map, nr_types, remap_label=False, output_dtype='uint16
     pred_type_out = pred_type_out.astype(output_dtype)
 
     pred_inst = pred_inst.astype(output_dtype)
-    
+
     return pred_inst, pred_type_out
 ####
 
@@ -72,9 +72,9 @@ def process_instance_wsi(pred_map, nr_types, tile_coords, return_masks, remap_la
         tile_coords: coordinates of top left corner of tile
         return_masks: whether to save cropped segmentation masks
         remap_label: whether to map instance labels from 1 to N (N = number of nuclei)
-        offset: 
+        offset:
         output_dtype: data type of output
-    
+
     Returns:
         mask_list_out: list of cropped predicted segmentation masks
         type_list_out: list of class predictions for each nucleus
@@ -98,11 +98,11 @@ def process_instance_wsi(pred_map, nr_types, tile_coords, return_masks, remap_la
     offset_x = tile_coords[0]+offset
     offset_y = tile_coords[1]+offset
 
-    cent_list_out = [(x[0]+offset_y, x[1]+offset_x) for x in pred_cent] # ensure 
-    
+    cent_list_out = [(x[0]+offset_y, x[1]+offset_x) for x in pred_cent] # ensure
+
     # get the shape of the input tile
     shape_pred = pred_inst.shape
-    
+
     # remap label is very slow - only uncomment if necessary to map labels in order
     if remap_label:
         pred_inst = remap_label(pred_inst, by_size=True)
@@ -143,7 +143,7 @@ def crop_array(pred_inst, pred_type, pred_cent, shape_tile, crop_shape=(70,70)):
         pred_inst:  predicted nuclear instances for a given tile
         pred_type:  predicted nuclear types (pixel based) for a given tile
         pred_cent:  predicted centroid for a given nucleus
-        shape_tile: shape of tile 
+        shape_tile: shape of tile
         crop_shape: output crop shape (saved as (y,x))
 
     Returns:
@@ -159,17 +159,17 @@ def crop_array(pred_inst, pred_type, pred_cent, shape_tile, crop_shape=(70,70)):
         x_crop = shape_tile[1] - crop_shape[1]
     else:
         x_crop = (pred_cent[1] - (crop_shape[1]/2))
-    
+
     if pred_y < (crop_shape[0]/2):
         y_crop = 0
     elif pred_y > (shape_tile[0] - (crop_shape[0]/2)):
         y_crop = shape_tile[0] - crop_shape[0]
     else:
         y_crop = (pred_cent[0] - (crop_shape[0]/2))
-    
+
     x_crop = int(x_crop)
     y_crop = int(y_crop)
-    
+
     # perform the crop
     crop_pred_inst = pred_inst[y_crop:y_crop+crop_shape[1], x_crop:x_crop+crop_shape[0]]
     crop_pred_type = pred_type[y_crop:y_crop+crop_shape[1], x_crop:x_crop+crop_shape[0]]
@@ -192,8 +192,8 @@ def img_min_axis(img):
 
 def stain_entropy_otsu(img):
     """
-    Binarise an input image by calculating the entropy on the 
-    hameatoxylin and eosin channels and then using otsu threshold 
+    Binarise an input image by calculating the entropy on the
+    hameatoxylin and eosin channels and then using otsu threshold
 
     Args:
         img: input array
@@ -226,7 +226,7 @@ def morphology(mask, proc_scale):
     Args:
         mask: input binary mask to refine
         proc_scale: scale at which to process
-    
+
     Return:
         processed binary image
     """
@@ -281,7 +281,7 @@ def get_tissue_mask(img, proc_scale=0.5):
     Args:
         img: input WSI as a np array
         proc_scale: scale at which to process
-    
+
     Returns:
         binarised tissue mask
     """
@@ -304,8 +304,8 @@ def get_tissue_mask(img, proc_scale=0.5):
 
 def remap_label(pred, by_size=False):
     """
-    Rename all instance id so that the id is contiguous i.e [0, 1, 2, 3] 
-    not [0, 2, 4, 6]. The ordering of instances (which one comes first) 
+    Rename all instance id so that the id is contiguous i.e [0, 1, 2, 3]
+    not [0, 2, 4, 6]. The ordering of instances (which one comes first)
     is preserved unless by_size=True, then the instances will be reordered
     so that bigger nucler has smaller ID
     Args:
@@ -329,6 +329,6 @@ def remap_label(pred, by_size=False):
 
     new_pred = np.zeros(pred.shape, np.int32)
     for idx, inst_id in enumerate(pred_id):
-        new_pred[pred == inst_id] = idx + 1    
+        new_pred[pred == inst_id] = idx + 1
     return new_pred
 #####

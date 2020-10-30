@@ -1,4 +1,4 @@
-# config.yaml
+# config_parse_output.yaml
 # note: area tuples are height x width, in accordance with openCV
 
 [nearest-neighbor] # section-header ignored by configargparse

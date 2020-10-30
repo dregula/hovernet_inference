@@ -1,0 +1,14 @@
+{
+    "json_config_filename" : "config_main.json"
+    , "--gpu" : "0,1"
+    , "--mode" : "roi"
+    , "--model" : "hover/model/hovernet.npz"
+    , "--input_dir" : "../base_image/"
+    , "--output_dir" : "./output/"
+    , "--logging_dir" : "logging/"
+    , "--logging_level" : "WARNING"
+    , "--batch_size" : 25
+    , "--tile_size" : 512
+    , "--return_masks" : true
+    , "--tissue_level" : 7
+}
